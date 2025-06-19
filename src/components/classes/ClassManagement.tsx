@@ -1,0 +1,357 @@
+
+import React, { useState, useEffect } from 'react';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+import { Badge } from "@/components/ui/badge";
+import { Plus, Users, BookOpen, Edit, Trash2 } from "lucide-react";
+import { supabase } from "@/integrations/supabase/client";
+import { useToast } from "@/hooks/use-toast";
+
+interface ClassData {
+  id: string;
+  name: string;
+  grade: string;
+  year: number;
+  teacher_id?: string;
+  teacher_name?: string;
+  student_count: number;
+  created_at: string;
+}
+
+interface ClassManagementProps {
+  userRole: string;
+}
+
+const ClassManagement = ({ userRole }: ClassManagementProps) => {
+  const [classes, setClasses] = useState<ClassData[]>([]);
+  const [teachers, setTeachers] = useState<any[]>([]);
+  const [isDialogOpen, setIsDialogOpen] = useState(false);
+  const [editingClass, setEditingClass] = useState<ClassData | null>(null);
+  const [loading, setLoading] = useState(true);
+  const { toast } = useToast();
+
+  const [formData, setFormData] = useState({
+    name: '',
+    grade: '',
+    year: new Date().getFullYear(),
+    teacher_id: ''
+  });
+
+  useEffect(() => {
+    fetchClasses();
+    fetchTeachers();
+  }, []);
+
+  const fetchClasses = async () => {
+    try {
+      const { data, error } = await supabase
+        .from('classes')
+        .select(`
+          *,
+          teacher:profiles!classes_teacher_id_fkey(full_name),
+          students:student_classes(count)
+        `);
+
+      if (error) throw error;
+
+      const formattedClasses = data?.map(cls => ({
+        ...cls,
+        teacher_name: cls.teacher?.full_name || 'Sem professor',
+        student_count: cls.students?.[0]?.count || 0
+      })) || [];
+
+      setClasses(formattedClasses);
+    } catch (error) {
+      console.error('Erro ao carregar turmas:', error);
+      toast({
+        title: "Erro",
+        description: "Não foi possível carregar as turmas",
+        variant: "destructive"
+      });
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const fetchTeachers = async () => {
+    try {
+      const { data, error } = await supabase
+        .from('profiles')
+        .select('id, full_name')
+        .eq('role', 'professor');
+
+      if (error) throw error;
+      setTeachers(data || []);
+    } catch (error) {
+      console.error('Erro ao carregar professores:', error);
+    }
+  };
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    
+    try {
+      if (editingClass) {
+        const { error } = await supabase
+          .from('classes')
+          .update(formData)
+          .eq('id', editingClass.id);
+
+        if (error) throw error;
+        
+        toast({
+          title: "Sucesso",
+          description: "Turma atualizada com sucesso"
+        });
+      } else {
+        const { error } = await supabase
+          .from('classes')
+          .insert([formData]);
+
+        if (error) throw error;
+        
+        toast({
+          title: "Sucesso",
+          description: "Turma criada com sucesso"
+        });
+      }
+
+      setIsDialogOpen(false);
+      setEditingClass(null);
+      setFormData({ name: '', grade: '', year: new Date().getFullYear(), teacher_id: '' });
+      fetchClasses();
+    } catch (error) {
+      console.error('Erro ao salvar turma:', error);
+      toast({
+        title: "Erro",
+        description: "Não foi possível salvar a turma",
+        variant: "destructive"
+      });
+    }
+  };
+
+  const handleEdit = (classData: ClassData) => {
+    setEditingClass(classData);
+    setFormData({
+      name: classData.name,
+      grade: classData.grade,
+      year: classData.year,
+      teacher_id: classData.teacher_id || ''
+    });
+    setIsDialogOpen(true);
+  };
+
+  const handleDelete = async (classId: string) => {
+    if (!confirm('Tem certeza que deseja excluir esta turma?')) return;
+
+    try {
+      const { error } = await supabase
+        .from('classes')
+        .delete()
+        .eq('id', classId);
+
+      if (error) throw error;
+      
+      toast({
+        title: "Sucesso",
+        description: "Turma excluída com sucesso"
+      });
+      
+      fetchClasses();
+    } catch (error) {
+      console.error('Erro ao excluir turma:', error);
+      toast({
+        title: "Erro",
+        description: "Não foi possível excluir a turma",
+        variant: "destructive"
+      });
+    }
+  };
+
+  const canManageClasses = ['diretor', 'coordenador'].includes(userRole);
+
+  if (loading) {
+    return <div className="flex justify-center p-8">Carregando turmas...</div>;
+  }
+
+  return (
+    <div className="space-y-6">
+      <div className="flex justify-between items-center">
+        <div>
+          <h1 className="text-3xl font-bold tracking-tight">Gestão de Turmas</h1>
+          <p className="text-muted-foreground">
+            Gerencie as turmas da escola
+          </p>
+        </div>
+        
+        {canManageClasses && (
+          <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
+            <DialogTrigger asChild>
+              <Button onClick={() => setEditingClass(null)}>
+                <Plus className="h-4 w-4 mr-2" />
+                Nova Turma
+              </Button>
+            </DialogTrigger>
+            <DialogContent>
+              <DialogHeader>
+                <DialogTitle>
+                  {editingClass ? 'Editar Turma' : 'Nova Turma'}
+                </DialogTitle>
+                <DialogDescription>
+                  {editingClass ? 'Edite as informações da turma' : 'Preencha os dados para criar uma nova turma'}
+                </DialogDescription>
+              </DialogHeader>
+              
+              <form onSubmit={handleSubmit} className="space-y-4">
+                <div>
+                  <Label htmlFor="name">Nome da Turma</Label>
+                  <Input
+                    id="name"
+                    value={formData.name}
+                    onChange={(e) => setFormData({...formData, name: e.target.value})}
+                    placeholder="Ex: 1º Ano A"
+                    required
+                  />
+                </div>
+                
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <Label htmlFor="grade">Série</Label>
+                    <Select value={formData.grade} onValueChange={(value) => setFormData({...formData, grade: value})}>
+                      <SelectTrigger>
+                        <SelectValue placeholder="Selecione a série" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="1º ano">1º Ano</SelectItem>
+                        <SelectItem value="2º ano">2º Ano</SelectItem>
+                        <SelectItem value="3º ano">3º Ano</SelectItem>
+                        <SelectItem value="4º ano">4º Ano</SelectItem>
+                        <SelectItem value="5º ano">5º Ano</SelectItem>
+                        <SelectItem value="6º ano">6º Ano</SelectItem>
+                        <SelectItem value="7º ano">7º Ano</SelectItem>
+                        <SelectItem value="8º ano">8º Ano</SelectItem>
+                        <SelectItem value="9º ano">9º Ano</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  
+                  <div>
+                    <Label htmlFor="year">Ano Letivo</Label>
+                    <Input
+                      id="year"
+                      type="number"
+                      value={formData.year}
+                      onChange={(e) => setFormData({...formData, year: parseInt(e.target.value)})}
+                      min="2020"
+                      max="2030"
+                      required
+                    />
+                  </div>
+                </div>
+                
+                <div>
+                  <Label htmlFor="teacher">Professor Responsável</Label>
+                  <Select value={formData.teacher_id} onValueChange={(value) => setFormData({...formData, teacher_id: value})}>
+                    <SelectTrigger>
+                      <SelectValue placeholder="Selecione um professor" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="">Sem professor</SelectItem>
+                      {teachers.map((teacher) => (
+                        <SelectItem key={teacher.id} value={teacher.id}>
+                          {teacher.full_name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                
+                <div className="flex justify-end gap-2">
+                  <Button type="button" variant="outline" onClick={() => setIsDialogOpen(false)}>
+                    Cancelar
+                  </Button>
+                  <Button type="submit">
+                    {editingClass ? 'Atualizar' : 'Criar'}
+                  </Button>
+                </div>
+              </form>
+            </DialogContent>
+          </Dialog>
+        )}
+      </div>
+
+      <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
+        {classes.map((classData) => (
+          <Card key={classData.id} className="hover:shadow-md transition-shadow">
+            <CardHeader className="pb-2">
+              <div className="flex justify-between items-start">
+                <div>
+                  <CardTitle className="text-lg">{classData.name}</CardTitle>
+                  <CardDescription>{classData.grade} - {classData.year}</CardDescription>
+                </div>
+                {canManageClasses && (
+                  <div className="flex gap-1">
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      onClick={() => handleEdit(classData)}
+                      className="h-8 w-8"
+                    >
+                      <Edit className="h-4 w-4" />
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      onClick={() => handleDelete(classData.id)}
+                      className="h-8 w-8 text-destructive hover:text-destructive"
+                    >
+                      <Trash2 className="h-4 w-4" />
+                    </Button>
+                  </div>
+                )}
+              </div>
+            </CardHeader>
+            <CardContent>
+              <div className="space-y-2">
+                <div className="flex items-center text-sm text-muted-foreground">
+                  <BookOpen className="h-4 w-4 mr-2" />
+                  {classData.teacher_name}
+                </div>
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center text-sm text-muted-foreground">
+                    <Users className="h-4 w-4 mr-2" />
+                    {classData.student_count} alunos
+                  </div>
+                  <Badge variant="secondary">
+                    {classData.grade}
+                  </Badge>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+        ))}
+      </div>
+
+      {classes.length === 0 && (
+        <Card>
+          <CardContent className="flex flex-col items-center justify-center py-16">
+            <Users className="h-12 w-12 text-muted-foreground mb-4" />
+            <h3 className="text-lg font-semibold mb-2">Nenhuma turma encontrada</h3>
+            <p className="text-muted-foreground text-center">
+              {canManageClasses 
+                ? "Comece criando sua primeira turma clicando no botão 'Nova Turma'."
+                : "Não há turmas cadastradas no sistema ainda."
+              }
+            </p>
+          </CardContent>
+        </Card>
+      )}
+    </div>
+  );
+};
+
+export default ClassManagement;
