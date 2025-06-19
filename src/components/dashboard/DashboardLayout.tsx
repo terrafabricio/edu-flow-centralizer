@@ -1,34 +1,36 @@
 
-import React, { useState } from 'react';
-import { SidebarProvider, Sidebar, SidebarContent, SidebarHeader, SidebarMenu, SidebarMenuItem, SidebarMenuButton, SidebarInset, SidebarTrigger } from "@/components/ui/sidebar";
+import React from 'react';
 import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { Badge } from "@/components/ui/badge";
 import { 
-  Home, 
+  LayoutDashboard, 
   Users, 
   GraduationCap, 
-  BookOpen, 
-  Calendar, 
-  FileText, 
+  School, 
   Settings, 
-  LogOut,
-  School,
-  UserCheck,
-  ClipboardList
+  LogOut, 
+  Menu,
+  X
 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
+import { useNavigate } from 'react-router-dom';
 import { useToast } from "@/hooks/use-toast";
+import { useState } from 'react';
 
 interface DashboardLayoutProps {
   user: any;
   profile: any;
-  children: React.ReactNode;
   activeSection: string;
   onSectionChange: (section: string) => void;
+  children: React.ReactNode;
 }
 
-const DashboardLayout = ({ user, profile, children, activeSection, onSectionChange }: DashboardLayoutProps) => {
+const DashboardLayout = ({ user, profile, activeSection, onSectionChange, children }: DashboardLayoutProps) => {
+  const navigate = useNavigate();
   const { toast } = useToast();
+  const [sidebarOpen, setSidebarOpen] = useState(false);
 
   const handleLogout = async () => {
     try {
@@ -39,8 +41,10 @@ const DashboardLayout = ({ user, profile, children, activeSection, onSectionChan
         title: "Logout realizado",
         description: "Você foi desconectado com sucesso"
       });
+      
+      navigate('/auth');
     } catch (error) {
-      console.error('Erro ao fazer logout:', error);
+      console.error('Erro no logout:', error);
       toast({
         title: "Erro",
         description: "Erro ao fazer logout",
@@ -51,112 +55,156 @@ const DashboardLayout = ({ user, profile, children, activeSection, onSectionChan
 
   const getMenuItems = () => {
     const baseItems = [
-      { id: 'dashboard', label: 'Dashboard', icon: Home },
+      { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard }
     ];
 
-    const roleSpecificItems = {
-      diretor: [
-        { id: 'users', label: 'Usuários', icon: UserCheck },
-        { id: 'classes', label: 'Turmas', icon: School },
-        { id: 'students', label: 'Estudantes', icon: GraduationCap },
-        { id: 'teachers', label: 'Professores', icon: Users },
-        { id: 'subjects', label: 'Disciplinas', icon: BookOpen },
-        { id: 'reports', label: 'Relatórios', icon: FileText },
-      ],
-      coordenador: [
-        { id: 'classes', label: 'Turmas', icon: School },
-        { id: 'students', label: 'Estudantes', icon: GraduationCap },
-        { id: 'teachers', label: 'Professores', icon: Users },
-        { id: 'subjects', label: 'Disciplinas', icon: BookOpen },
-        { id: 'schedule', label: 'Horários', icon: Calendar },
-      ],
-      professor: [
-        { id: 'classes', label: 'Minhas Turmas', icon: School },
-        { id: 'students', label: 'Meus Alunos', icon: GraduationCap },
-        { id: 'grades', label: 'Notas', icon: ClipboardList },
-        { id: 'schedule', label: 'Horários', icon: Calendar },
-      ],
-      aluno: [
-        { id: 'grades', label: 'Minhas Notas', icon: ClipboardList },
-        { id: 'subjects', label: 'Disciplinas', icon: BookOpen },
-        { id: 'schedule', label: 'Horários', icon: Calendar },
-      ],
-    };
-
-    return [
-      ...baseItems,
-      ...(roleSpecificItems[profile?.role as keyof typeof roleSpecificItems] || []),
-      { id: 'settings', label: 'Configurações', icon: Settings }
-    ];
+    switch (profile?.role) {
+      case 'diretor':
+        return [
+          ...baseItems,
+          { id: 'users', label: 'Usuários', icon: Users },
+          { id: 'classes', label: 'Turmas', icon: School },
+          { id: 'students', label: 'Estudantes', icon: GraduationCap },
+          { id: 'reports', label: 'Relatórios', icon: Settings }
+        ];
+      case 'coordenador':
+        return [
+          ...baseItems,
+          { id: 'classes', label: 'Turmas', icon: School },
+          { id: 'students', label: 'Estudantes', icon: GraduationCap },
+          { id: 'schedule', label: 'Horários', icon: Settings }
+        ];
+      case 'professor':
+        return [
+          ...baseItems,
+          { id: 'classes', label: 'Minhas Turmas', icon: School },
+          { id: 'grades', label: 'Notas', icon: GraduationCap },
+          { id: 'schedule', label: 'Horários', icon: Settings }
+        ];
+      case 'aluno':
+        return [
+          ...baseItems,
+          { id: 'grades', label: 'Notas', icon: GraduationCap },
+          { id: 'schedule', label: 'Horários', icon: Settings },
+          { id: 'subjects', label: 'Disciplinas', icon: School }
+        ];
+      default:
+        return baseItems;
+    }
   };
 
-  return (
-    <SidebarProvider>
-      <div className="flex min-h-screen w-full">
-        <Sidebar>
-          <SidebarHeader className="border-b px-6 py-4">
-            <div className="flex items-center space-x-3">
-              <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary text-primary-foreground">
-                <School className="h-4 w-4" />
-              </div>
-              <div>
-                <h2 className="text-lg font-semibold">Sistema Escolar</h2>
-                <p className="text-xs text-muted-foreground capitalize">
-                  {profile?.role || 'Usuário'}
-                </p>
-              </div>
-            </div>
-          </SidebarHeader>
-          
-          <SidebarContent>
-            <SidebarMenu>
-              {getMenuItems().map((item) => (
-                <SidebarMenuItem key={item.id}>
-                  <SidebarMenuButton
-                    isActive={activeSection === item.id}
-                    onClick={() => onSectionChange(item.id)}
-                  >
-                    <item.icon className="h-4 w-4" />
-                    <span>{item.label}</span>
-                  </SidebarMenuButton>
-                </SidebarMenuItem>
-              ))}
-              
-              <SidebarMenuItem>
-                <SidebarMenuButton onClick={handleLogout} className="text-destructive">
-                  <LogOut className="h-4 w-4" />
-                  <span>Sair</span>
-                </SidebarMenuButton>
-              </SidebarMenuItem>
-            </SidebarMenu>
-          </SidebarContent>
-        </Sidebar>
+  const menuItems = getMenuItems();
 
-        <SidebarInset className="flex flex-1 flex-col">
-          <header className="flex h-16 shrink-0 items-center gap-2 border-b px-4">
-            <SidebarTrigger className="-ml-1" />
-            <div className="flex flex-1 items-center justify-end space-x-4">
-              <div className="flex items-center space-x-3">
-                <div className="text-right">
-                  <p className="text-sm font-medium">{profile?.full_name}</p>
-                  <p className="text-xs text-muted-foreground">{profile?.email}</p>
-                </div>
-                <Avatar className="h-8 w-8">
-                  <AvatarImage src={`https://api.dicebear.com/6.x/initials/svg?seed=${profile?.full_name}`} />
-                  <AvatarFallback>
-                    {profile?.full_name?.split(' ').map((n: string) => n[0]).join('').toUpperCase()}
-                  </AvatarFallback>
-                </Avatar>
-              </div>
-            </div>
-          </header>
-          
-          <main className="flex-1 overflow-auto p-6">
-            {children}
-          </main>
-        </SidebarInset>
+  const SidebarContent = () => (
+    <div className="flex flex-col h-full">
+      {/* Header */}
+      <div className="p-6 border-b">
+        <div className="flex items-center space-x-3">
+          <School className="h-8 w-8 text-primary" />
+          <div>
+            <h2 className="text-xl font-bold">Sistema Escolar</h2>
+            <p className="text-sm text-muted-foreground">Gestão Educacional</p>
+          </div>
+        </div>
       </div>
-    </SidebarProvider>
+
+      {/* User Profile */}
+      <div className="p-6 border-b">
+        <div className="flex items-center space-x-3">
+          <Avatar>
+            <AvatarImage src={`https://api.dicebear.com/6.x/initials/svg?seed=${profile?.full_name}`} />
+            <AvatarFallback>
+              {profile?.full_name?.charAt(0)?.toUpperCase() || 'U'}
+            </AvatarFallback>
+          </Avatar>
+          <div className="flex-1">
+            <p className="font-medium text-sm">{profile?.full_name}</p>
+            <div className="flex items-center space-x-2">
+              <Badge variant="outline" className="text-xs capitalize">
+                {profile?.role}
+              </Badge>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* Navigation */}
+      <nav className="flex-1 p-4">
+        <div className="space-y-2">
+          {menuItems.map((item) => (
+            <Button
+              key={item.id}
+              variant={activeSection === item.id ? "default" : "ghost"}
+              className="w-full justify-start"
+              onClick={() => {
+                onSectionChange(item.id);
+                setSidebarOpen(false);
+              }}
+            >
+              <item.icon className="h-4 w-4 mr-2" />
+              {item.label}
+            </Button>
+          ))}
+        </div>
+      </nav>
+
+      {/* Logout */}
+      <div className="p-4 border-t">
+        <Button
+          variant="ghost"
+          className="w-full justify-start text-destructive hover:text-destructive"
+          onClick={handleLogout}
+        >
+          <LogOut className="h-4 w-4 mr-2" />
+          Sair
+        </Button>
+      </div>
+    </div>
+  );
+
+  return (
+    <div className="min-h-screen bg-background">
+      {/* Mobile sidebar overlay */}
+      {sidebarOpen && (
+        <div 
+          className="fixed inset-0 bg-black/50 z-40 lg:hidden"
+          onClick={() => setSidebarOpen(false)}
+        />
+      )}
+
+      {/* Sidebar */}
+      <aside className={`
+        fixed top-0 left-0 z-50 h-full w-64 bg-card border-r transform transition-transform duration-200 ease-in-out
+        ${sidebarOpen ? 'translate-x-0' : '-translate-x-full'}
+        lg:translate-x-0 lg:static lg:z-auto
+      `}>
+        <SidebarContent />
+      </aside>
+
+      {/* Main content */}
+      <div className="lg:ml-64">
+        {/* Mobile header */}
+        <header className="lg:hidden flex items-center justify-between p-4 border-b bg-card">
+          <Button
+            variant="ghost"
+            size="icon"
+            onClick={() => setSidebarOpen(true)}
+          >
+            <Menu className="h-5 w-5" />
+          </Button>
+          <div className="flex items-center space-x-2">
+            <School className="h-6 w-6 text-primary" />
+            <span className="font-semibold">Sistema Escolar</span>
+          </div>
+          <div className="w-10" /> {/* Spacer for alignment */}
+        </header>
+
+        {/* Page content */}
+        <main className="p-6">
+          {children}
+        </main>
+      </div>
+    </div>
   );
 };
 

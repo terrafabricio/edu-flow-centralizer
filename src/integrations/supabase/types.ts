@@ -9,10 +9,49 @@ export type Json =
 export type Database = {
   public: {
     Tables: {
+      classes: {
+        Row: {
+          created_at: string
+          grade: string
+          id: string
+          name: string
+          teacher_id: string | null
+          updated_at: string
+          year: number
+        }
+        Insert: {
+          created_at?: string
+          grade: string
+          id?: string
+          name: string
+          teacher_id?: string | null
+          updated_at?: string
+          year?: number
+        }
+        Update: {
+          created_at?: string
+          grade?: string
+          id?: string
+          name?: string
+          teacher_id?: string | null
+          updated_at?: string
+          year?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "classes_teacher_id_fkey"
+            columns: ["teacher_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       profiles: {
         Row: {
           created_at: string
           email: string
+          enrollment_number: string | null
           full_name: string
           id: string
           phone: string | null
@@ -22,6 +61,7 @@ export type Database = {
         Insert: {
           created_at?: string
           email: string
+          enrollment_number?: string | null
           full_name: string
           id: string
           phone?: string | null
@@ -31,6 +71,7 @@ export type Database = {
         Update: {
           created_at?: string
           email?: string
+          enrollment_number?: string | null
           full_name?: string
           id?: string
           phone?: string | null
@@ -38,6 +79,42 @@ export type Database = {
           updated_at?: string
         }
         Relationships: []
+      }
+      student_classes: {
+        Row: {
+          class_id: string
+          enrolled_at: string
+          id: string
+          student_id: string
+        }
+        Insert: {
+          class_id: string
+          enrolled_at?: string
+          id?: string
+          student_id: string
+        }
+        Update: {
+          class_id?: string
+          enrolled_at?: string
+          id?: string
+          student_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "student_classes_class_id_fkey"
+            columns: ["class_id"]
+            isOneToOne: false
+            referencedRelation: "classes"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "student_classes_student_id_fkey"
+            columns: ["student_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
       }
     }
     Views: {
