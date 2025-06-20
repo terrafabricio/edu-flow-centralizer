@@ -7,6 +7,10 @@ import DashboardLayout from '@/components/dashboard/DashboardLayout';
 import DashboardHome from '@/components/dashboard/DashboardHome';
 import ClassManagement from '@/components/classes/ClassManagement';
 import StudentManagement from '@/components/students/StudentManagement';
+import UserManagement from '@/components/users/UserManagement';
+import GradeManagement from '@/components/grades/GradeManagement';
+import ReportsManagement from '@/components/reports/ReportsManagement';
+import ScheduleManagement from '@/components/schedule/ScheduleManagement';
 
 const Dashboard = () => {
   const [user, setUser] = useState<any>(null);
@@ -77,10 +81,29 @@ const Dashboard = () => {
     switch (activeSection) {
       case 'dashboard':
         return <DashboardHome profile={profile} />;
+      case 'users':
+        return <UserManagement userRole={profile?.role} />;
       case 'classes':
         return <ClassManagement userRole={profile?.role} />;
       case 'students':
         return <StudentManagement userRole={profile?.role} />;
+      case 'grades':
+        return <GradeManagement userRole={profile?.role} userId={user?.id} />;
+      case 'reports':
+        return <ReportsManagement userRole={profile?.role} />;
+      case 'schedule':
+        return <ScheduleManagement userRole={profile?.role} userId={user?.id} />;
+      case 'subjects':
+        return (
+          <div className="flex items-center justify-center h-64">
+            <div className="text-center">
+              <h2 className="text-2xl font-semibold mb-2">Disciplinas</h2>
+              <p className="text-muted-foreground">
+                Esta seção ainda está sendo desenvolvida.
+              </p>
+            </div>
+          </div>
+        );
       default:
         return (
           <div className="flex items-center justify-center h-64">
