@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -55,8 +54,13 @@ const StudentManagement = ({ userRole }: StudentManagementProps) => {
         .from('profiles')
         .select(`
           *,
-          student_classes!inner(
-            class:classes(name)
+          student_classes(
+            id,
+            class_id,
+            class:classes(
+              id,
+              name
+            )
           )
         `)
         .eq('role', 'aluno');
@@ -67,7 +71,7 @@ const StudentManagement = ({ userRole }: StudentManagementProps) => {
         ...student,
         enrollment_number: student.enrollment_number || `EST${Date.now()}`,
         class_name: student.student_classes?.[0]?.class?.name || 'Sem turma',
-        class_id: student.student_classes?.[0]?.class_id
+        class_id: student.student_classes?.[0]?.class_id || ''
       })) || [];
 
       setStudents(formattedStudents);
