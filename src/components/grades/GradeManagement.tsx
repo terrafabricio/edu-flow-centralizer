@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -148,10 +147,10 @@ const GradeManagement = ({ userRole, userId }: GradeManagementProps) => {
     return 'text-red-600';
   };
 
-  const calculateAverage = () => {
+  const calculateAverage = (): number => {
     if (grades.length === 0) return 0;
     const sum = grades.reduce((acc, grade) => acc + grade.grade, 0);
-    return (sum / grades.length).toFixed(1);
+    return sum / grades.length;
   };
 
   if (loading) {
@@ -367,8 +366,8 @@ const GradeManagement = ({ userRole, userId }: GradeManagementProps) => {
                   <TrendingUp className="h-4 w-4 text-muted-foreground" />
                 </CardHeader>
                 <CardContent>
-                  <div className={`text-2xl font-bold ${getGradeColor(parseFloat(calculateAverage()))}`}>
-                    {calculateAverage()}
+                  <div className={`text-2xl font-bold ${getGradeColor(calculateAverage())}`}>
+                    {calculateAverage().toFixed(1)}
                   </div>
                   <p className="text-xs text-muted-foreground">
                     Baseado em {grades.length} avaliações

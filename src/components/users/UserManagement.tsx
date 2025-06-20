@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -12,11 +11,13 @@ import { Plus, Users, Edit, Trash2, UserCheck, UserX } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 
+type UserRole = 'aluno' | 'professor' | 'coordenador' | 'diretor';
+
 interface UserData {
   id: string;
   full_name: string;
   email: string;
-  role: string;
+  role: UserRole;
   enrollment_number?: string;
   phone?: string;
   created_at: string;
@@ -37,7 +38,7 @@ const UserManagement = ({ userRole }: UserManagementProps) => {
   const [formData, setFormData] = useState({
     full_name: '',
     email: '',
-    role: 'aluno',
+    role: 'aluno' as UserRole,
     enrollment_number: '',
     phone: '',
     password: ''
@@ -268,7 +269,7 @@ const UserManagement = ({ userRole }: UserManagementProps) => {
               
               <div>
                 <Label htmlFor="role">Perfil</Label>
-                <Select value={formData.role} onValueChange={(value) => setFormData({...formData, role: value})}>
+                <Select value={formData.role} onValueChange={(value: UserRole) => setFormData({...formData, role: value})}>
                   <SelectTrigger>
                     <SelectValue />
                   </SelectTrigger>
