@@ -35,23 +35,56 @@ const Dashboard = () => {
         setUser(session.user);
         
         // Buscar perfil do usuário
-        const { data: profileData, error: profileError } = await supabase
+        let { data: profileData, error: profileError } = await supabase
           .from('profiles')
           .select('*')
           .eq('id', session.user.id)
           .single();
 
-        if (profileError) throw profileError;
+        // Se o perfil não existir, criar um novo
+        if (profileError && profileError.code === 'PGRST116') {
+          console.log('Perfil não encontrado, criando novo perfil...');
+          
+          const newProfile = {
+            id: session.user.id,
+            full_name: session.user.user_metadata?.full_name || session.user.email?.split('@')[0] || 'Usuário',
+            email: session.user.email || '',
+            role: (session.user.user_metadata?.role as 'diretor' | 'coordenador' | 'professor' | 'aluno') || 'aluno'
+          };
+          
+          const { data: insertedProfile, error: insertError } = await supabase
+            .from('profiles')
+            .insert([newProfile])
+            .select()
+            .single();
+            
+          if (insertError) {
+            throw insertError;
+          }
+          
+          profileData = insertedProfile;
+          
+          toast({
+            title: "Perfil criado",
+            description: "Seu perfil foi criado com sucesso!"
+          });
+        } else if (profileError) {
+          throw profileError;
+        }
         
         setProfile(profileData);
-      } catch (error) {
+      } catch (error: any) {
         console.error('Erro ao carregar sessão:', error);
         toast({
           title: "Erro",
-          description: "Erro ao carregar dados do usuário",
+          description: error.message || "Erro ao carregar dados do usuário",
           variant: "destructive"
         });
-        navigate('/auth');
+        
+        // Se houver erro de autenticação, redirecionar para login
+        if (error.message?.includes('JWT') || error.message?.includes('auth')) {
+          navigate('/auth');
+        }
       } finally {
         setLoading(false);
       }
@@ -60,9 +93,47 @@ const Dashboard = () => {
     getSession();
 
     // Listener para mudanças na autenticação
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
+      console.log('Auth state changed:', event, session?.user?.email);
+      
       if (event === 'SIGNED_OUT' || !session) {
+        setUser(null);
+        setProfile(null);
         navigate('/auth');
+      } else if (event === 'SIGNED_IN' && session) {
+        setUser(session.user);
+        
+        // Buscar ou criar perfil quando usuário faz login
+        try {
+          let { data: profileData, error: profileError } = await supabase
+            .from('profiles')
+            .select('*')
+            .eq('id', session.user.id)
+            .single();
+
+          if (profileError && profileError.code === 'PGRST116') {
+            const newProfile = {
+              id: session.user.id,
+              full_name: session.user.user_metadata?.full_name || session.user.email?.split('@')[0] || 'Usuário',
+              email: session.user.email || '',
+              role: (session.user.user_metadata?.role as 'diretor' | 'coordenador' | 'professor' | 'aluno') || 'aluno'
+            };
+            
+            const { data: insertedProfile, error: insertError } = await supabase
+              .from('profiles')
+              .insert([newProfile])
+              .select()
+              .single();
+              
+            if (!insertError) {
+              profileData = insertedProfile;
+            }
+          }
+          
+          setProfile(profileData);
+        } catch (error) {
+          console.error('Erro ao carregar perfil após login:', error);
+        }
       }
     });
 
@@ -72,7 +143,10 @@ const Dashboard = () => {
   if (loading) {
     return (
       <div className="min-h-screen flex items-center justify-center">
-        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mx-auto mb-4"></div>
+          <p className="text-muted-foreground">Carregando...</p>
+        </div>
       </div>
     );
   }

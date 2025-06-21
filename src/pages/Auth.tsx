@@ -11,6 +11,8 @@ import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { School } from "lucide-react";
 
+type UserRole = 'diretor' | 'coordenador' | 'professor' | 'aluno';
+
 const Auth = () => {
   const [isLoading, setIsLoading] = useState(false);
   const navigate = useNavigate();
@@ -26,7 +28,7 @@ const Auth = () => {
     password: '',
     confirmPassword: '',
     fullName: '',
-    role: 'aluno' as 'diretor' | 'coordenador' | 'professor' | 'aluno'
+    role: 'aluno' as UserRole
   });
 
   useEffect(() => {
@@ -44,13 +46,15 @@ const Auth = () => {
     setIsLoading(true);
 
     try {
-      const { error } = await supabase.auth.signInWithPassword({
+      const { data, error } = await supabase.auth.signInWithPassword({
         email: loginData.email,
         password: loginData.password,
       });
 
       if (error) throw error;
 
+      console.log('Login successful:', data.user?.email);
+      
       toast({
         title: "Sucesso",
         description: "Login realizado com sucesso!"
@@ -58,9 +62,10 @@ const Auth = () => {
 
       navigate('/dashboard');
     } catch (error: any) {
+      console.error('Login error:', error);
       toast({
         title: "Erro no login",
-        description: error.message,
+        description: error.message || "Erro ao fazer login",
         variant: "destructive"
       });
     } finally {
@@ -80,10 +85,19 @@ const Auth = () => {
       return;
     }
 
+    if (signupData.password.length < 6) {
+      toast({
+        title: "Erro",
+        description: "A senha deve ter pelo menos 6 caracteres",
+        variant: "destructive"
+      });
+      return;
+    }
+
     setIsLoading(true);
 
     try {
-      const { error } = await supabase.auth.signUp({
+      const { data, error } = await supabase.auth.signUp({
         email: signupData.email,
         password: signupData.password,
         options: {
@@ -97,14 +111,17 @@ const Auth = () => {
 
       if (error) throw error;
 
-      toast({
-        title: "Sucesso",
-        description: "Conta criada com sucesso! Verifique seu email."
-      });
+      if (data.user) {
+        toast({
+          title: "Sucesso",
+          description: "Conta criada com sucesso! Verifique seu email para confirmar."
+        });
+      }
     } catch (error: any) {
+      console.error('Signup error:', error);
       toast({
         title: "Erro no cadastro",
-        description: error.message,
+        description: error.message || "Erro ao criar conta",
         variant: "destructive"
       });
     } finally {
@@ -186,7 +203,7 @@ const Auth = () => {
                 </div>
                 <div>
                   <Label htmlFor="role">Perfil</Label>
-                  <Select value={signupData.role} onValueChange={(value: any) => setSignupData({...signupData, role: value})}>
+                  <Select value={signupData.role} onValueChange={(value: UserRole) => setSignupData({...signupData, role: value})}>
                     <SelectTrigger>
                       <SelectValue placeholder="Selecione seu perfil" />
                     </SelectTrigger>
@@ -205,8 +222,9 @@ const Auth = () => {
                     type="password"
                     value={signupData.password}
                     onChange={(e) => setSignupData({...signupData, password: e.target.value})}
-                    placeholder="Sua senha"
+                    placeholder="Sua senha (mín. 6 caracteres)"
                     required
+                    minLength={6}
                   />
                 </div>
                 <div>
