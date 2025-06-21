@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -21,6 +22,12 @@ interface GradeData {
   observations?: string;
 }
 
+interface Subject {
+  id: string;
+  name: string;
+  description?: string;
+}
+
 interface GradeManagementProps {
   userRole: string;
   userId: string;
@@ -30,6 +37,7 @@ const GradeManagement = ({ userRole, userId }: GradeManagementProps) => {
   const [grades, setGrades] = useState<GradeData[]>([]);
   const [classes, setClasses] = useState<any[]>([]);
   const [students, setStudents] = useState<any[]>([]);
+  const [subjects, setSubjects] = useState<Subject[]>([]);
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState(userRole === 'aluno' ? 'view' : 'manage');
   const { toast } = useToast();
@@ -37,7 +45,7 @@ const GradeManagement = ({ userRole, userId }: GradeManagementProps) => {
   const [formData, setFormData] = useState({
     student_id: '',
     class_id: '',
-    subject: '',
+    subject_id: '',
     grade: '',
     assessment_type: 'prova',
     assessment_date: new Date().toISOString().split('T')[0],
@@ -50,19 +58,40 @@ const GradeManagement = ({ userRole, userId }: GradeManagementProps) => {
 
   const fetchInitialData = async () => {
     try {
+      // Buscar disciplinas
+      const { data: subjectsData, error: subjectsError } = await supabase
+        .from('subjects')
+        .select('*')
+        .order('name');
+
+      if (subjectsError) throw subjectsError;
+      setSubjects(subjectsData || []);
+
       if (userRole === 'professor') {
-        // Buscar turmas do professor
-        const { data: teacherClasses, error: classError } = await supabase
-          .from('classes')
-          .select('*')
+        // Buscar alocações do professor
+        const { data: allocations, error: allocError } = await supabase
+          .from('teacher_allocations')
+          .select(`
+            *,
+            class:classes(*),
+            subject:subjects(*)
+          `)
           .eq('teacher_id', userId);
 
-        if (classError) throw classError;
-        setClasses(teacherClasses || []);
+        if (allocError) throw allocError;
+
+        // Extrair turmas únicas
+        const uniqueClasses = allocations?.reduce((acc: any[], curr) => {
+          if (!acc.find(c => c.id === curr.class.id)) {
+            acc.push(curr.class);
+          }
+          return acc;
+        }, []) || [];
+        setClasses(uniqueClasses);
 
         // Buscar alunos das turmas do professor
-        if (teacherClasses && teacherClasses.length > 0) {
-          const classIds = teacherClasses.map(cls => cls.id);
+        if (uniqueClasses.length > 0) {
+          const classIds = uniqueClasses.map(cls => cls.id);
           const { data: classStudents, error: studentError } = await supabase
             .from('student_classes')
             .select(`
@@ -82,31 +111,58 @@ const GradeManagement = ({ userRole, userId }: GradeManagementProps) => {
           
           setStudents(uniqueStudents);
         }
+
+        // Buscar notas lançadas pelo professor
+        const { data: teacherGrades, error: gradesError } = await supabase
+          .from('grades')
+          .select(`
+            *,
+            student:profiles!grades_student_id_fkey(full_name),
+            class:classes(name),
+            subject:subjects(name)
+          `)
+          .eq('teacher_id', userId);
+
+        if (gradesError) throw gradesError;
+
+        const formattedGrades = teacherGrades?.map(grade => ({
+          id: grade.id,
+          student_name: grade.student.full_name,
+          class_name: grade.class.name,
+          subject: grade.subject.name,
+          grade: grade.grade,
+          assessment_type: grade.assessment_type,
+          assessment_date: grade.assessment_date,
+          observations: grade.observations
+        })) || [];
+
+        setGrades(formattedGrades);
+
       } else if (userRole === 'aluno') {
         // Buscar notas do aluno específico
-        // Como não temos tabela de notas real, vamos simular
-        setGrades([
-          {
-            id: '1',
-            student_name: 'Eu',
-            class_name: '1º Ano A',
-            subject: 'Matemática',
-            grade: 8.5,
-            assessment_type: 'Prova',
-            assessment_date: '2024-06-15',
-            observations: 'Bom desempenho'
-          },
-          {
-            id: '2',
-            student_name: 'Eu',
-            class_name: '1º Ano A',
-            subject: 'Português',
-            grade: 9.0,
-            assessment_type: 'Trabalho',
-            assessment_date: '2024-06-10',
-            observations: 'Excelente trabalho'
-          }
-        ]);
+        const { data: studentGrades, error: gradesError } = await supabase
+          .from('grades')
+          .select(`
+            *,
+            class:classes(name),
+            subject:subjects(name)
+          `)
+          .eq('student_id', userId);
+
+        if (gradesError) throw gradesError;
+
+        const formattedGrades = studentGrades?.map(grade => ({
+          id: grade.id,
+          student_name: 'Minhas Notas',
+          class_name: grade.class.name,
+          subject: grade.subject.name,
+          grade: grade.grade,
+          assessment_type: grade.assessment_type,
+          assessment_date: grade.assessment_date,
+          observations: grade.observations
+        })) || [];
+
+        setGrades(formattedGrades);
       }
     } catch (error) {
       console.error('Erro ao carregar dados:', error);
@@ -123,21 +179,46 @@ const GradeManagement = ({ userRole, userId }: GradeManagementProps) => {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
-    // Simulação de cadastro de nota (implementar quando houver tabela de notas)
-    toast({
-      title: "Sucesso",
-      description: "Nota lançada com sucesso (simulação)"
-    });
-    
-    setFormData({
-      student_id: '',
-      class_id: '',
-      subject: '',
-      grade: '',
-      assessment_type: 'prova',
-      assessment_date: new Date().toISOString().split('T')[0],
-      observations: ''
-    });
+    try {
+      const { error } = await supabase
+        .from('grades')
+        .insert({
+          student_id: formData.student_id,
+          class_id: formData.class_id,
+          subject_id: formData.subject_id,
+          teacher_id: userId,
+          grade: parseFloat(formData.grade),
+          assessment_type: formData.assessment_type,
+          assessment_date: formData.assessment_date,
+          observations: formData.observations || null
+        });
+
+      if (error) throw error;
+
+      toast({
+        title: "Sucesso",
+        description: "Nota lançada com sucesso"
+      });
+      
+      setFormData({
+        student_id: '',
+        class_id: '',
+        subject_id: '',
+        grade: '',
+        assessment_type: 'prova',
+        assessment_date: new Date().toISOString().split('T')[0],
+        observations: ''
+      });
+
+      fetchInitialData();
+    } catch (error) {
+      console.error('Erro ao lançar nota:', error);
+      toast({
+        title: "Erro",
+        description: "Não foi possível lançar a nota",
+        variant: "destructive"
+      });
+    }
   };
 
   const getGradeColor = (grade: number) => {
@@ -234,14 +315,19 @@ const GradeManagement = ({ userRole, userId }: GradeManagementProps) => {
                   
                   <div className="grid grid-cols-3 gap-4">
                     <div>
-                      <Label htmlFor="subject">Disciplina</Label>
-                      <Input
-                        id="subject"
-                        value={formData.subject}
-                        onChange={(e) => setFormData({...formData, subject: e.target.value})}
-                        placeholder="Ex: Matemática"
-                        required
-                      />
+                      <Label htmlFor="subject_id">Disciplina</Label>
+                      <Select value={formData.subject_id} onValueChange={(value) => setFormData({...formData, subject_id: value})}>
+                        <SelectTrigger>
+                          <SelectValue placeholder="Selecione a disciplina" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {subjects.map((subject) => (
+                            <SelectItem key={subject.id} value={subject.id}>
+                              {subject.name}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
                     </div>
                     
                     <div>

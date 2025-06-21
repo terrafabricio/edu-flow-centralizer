@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -11,7 +12,7 @@ import { Plus, Users, Edit, Trash2, UserCheck, UserX } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 
-type UserRole = 'aluno' | 'professor' | 'coordenador' | 'diretor';
+type UserRole = 'aluno' | 'professor' | 'coordenador' | 'diretor' | 'pai_mae';
 
 interface UserData {
   id: string;
@@ -179,7 +180,15 @@ const UserManagement = ({ userRole }: UserManagementProps) => {
       case 'coordenador': return 'bg-blue-100 text-blue-800';
       case 'professor': return 'bg-green-100 text-green-800';
       case 'aluno': return 'bg-gray-100 text-gray-800';
+      case 'pai_mae': return 'bg-purple-100 text-purple-800';
       default: return 'bg-gray-100 text-gray-800';
+    }
+  };
+
+  const getRoleLabel = (role: string) => {
+    switch (role) {
+      case 'pai_mae': return 'Pai/Mãe';
+      default: return role;
     }
   };
 
@@ -209,7 +218,7 @@ const UserManagement = ({ userRole }: UserManagementProps) => {
         <div>
           <h1 className="text-3xl font-bold tracking-tight">Gestão de Usuários</h1>
           <p className="text-muted-foreground">
-            Gerencie professores, coordenadores e alunos
+            Gerencie professores, coordenadores, alunos e responsáveis
           </p>
         </div>
         
@@ -278,6 +287,7 @@ const UserManagement = ({ userRole }: UserManagementProps) => {
                     <SelectItem value="professor">Professor</SelectItem>
                     <SelectItem value="coordenador">Coordenador</SelectItem>
                     <SelectItem value="diretor">Diretor</SelectItem>
+                    <SelectItem value="pai_mae">Pai/Mãe</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
@@ -322,6 +332,7 @@ const UserManagement = ({ userRole }: UserManagementProps) => {
           <TabsTrigger value="coordenador">Coordenadores</TabsTrigger>
           <TabsTrigger value="professor">Professores</TabsTrigger>
           <TabsTrigger value="aluno">Alunos</TabsTrigger>
+          <TabsTrigger value="pai_mae">Responsáveis</TabsTrigger>
         </TabsList>
 
         <TabsContent value={activeTab} className="mt-6">
@@ -339,7 +350,7 @@ const UserManagement = ({ userRole }: UserManagementProps) => {
                         )}
                       </div>
                       <Badge className={getRoleColor(user.role)}>
-                        {user.role}
+                        {getRoleLabel(user.role)}
                       </Badge>
                     </div>
                     <div className="flex gap-2">
@@ -373,7 +384,7 @@ const UserManagement = ({ userRole }: UserManagementProps) => {
                 <p className="text-muted-foreground text-center">
                   {activeTab === 'all' 
                     ? "Comece criando o primeiro usuário clicando no botão 'Novo Usuário'."
-                    : `Não há ${activeTab}s cadastrados ainda.`
+                    : `Não há ${getRoleLabel(activeTab)}s cadastrados ainda.`
                   }
                 </p>
               </CardContent>

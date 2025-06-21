@@ -5,6 +5,8 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Clock, Calendar, BookOpen, MapPin } from "lucide-react";
+import { supabase } from "@/integrations/supabase/client";
+import { useToast } from "@/hooks/use-toast";
 
 interface ScheduleItem {
   id: string;
@@ -24,63 +26,55 @@ interface ScheduleManagementProps {
 const ScheduleManagement = ({ userRole, userId }: ScheduleManagementProps) => {
   const [schedule, setSchedule] = useState<ScheduleItem[]>([]);
   const [loading, setLoading] = useState(true);
+  const { toast } = useToast();
 
   useEffect(() => {
     fetchSchedule();
   }, [userRole, userId]);
 
   const fetchSchedule = async () => {
-    // Simulação de dados de horário baseado no perfil
-    const mockSchedule: ScheduleItem[] = [
-      {
-        id: '1',
-        day: 'Segunda-feira',
-        time: '08:00 - 08:50',
-        subject: 'Matemática',
-        class: userRole === 'aluno' ? 'Minha Turma' : '1º Ano A',
-        teacher: userRole === 'professor' ? 'Eu' : 'Prof. João Silva',
-        room: 'Sala 101'
-      },
-      {
-        id: '2',
-        day: 'Segunda-feira',
-        time: '09:00 - 09:50',
-        subject: 'Português',
-        class: userRole === 'aluno' ? 'Minha Turma' : '1º Ano A',
-        teacher: userRole === 'professor' ? 'Eu' : 'Prof. Maria Santos',
-        room: 'Sala 102'
-      },
-      {
-        id: '3',
-        day: 'Terça-feira',
-        time: '08:00 - 08:50',
-        subject: 'História',
-        class: userRole === 'aluno' ? 'Minha Turma' : '2º Ano B',
-        teacher: userRole === 'professor' ? 'Eu' : 'Prof. Carlos Lima',
-        room: 'Sala 103'
-      },
-      {
-        id: '4',
-        day: 'Terça-feira',
-        time: '09:00 - 09:50',
-        subject: 'Ciências',
-        class: userRole === 'aluno' ? 'Minha Turma' : '1º Ano A',
-        teacher: userRole === 'professor' ? 'Eu' : 'Prof. Ana Costa',
-        room: 'Laboratório'
-      },
-      {
-        id: '5',
-        day: 'Quarta-feira',
-        time: '08:00 - 08:50',
-        subject: 'Geografia',
-        class: userRole === 'aluno' ? 'Minha Turma' : '3º Ano C',
-        teacher: userRole === 'professor' ? 'Eu' : 'Prof. Pedro Souza',
-        room: 'Sala 104'
-      }
-    ];
+    try {
+      let query = supabase
+        .from('schedules')
+        .select(`
+          *,
+          class:classes(name),
+          subject:subjects(name),
+          teacher:profiles!schedules_teacher_id_fkey(full_name)
+        `);
 
-    setSchedule(mockSchedule);
-    setLoading(false);
+      // Filtrar por professor se for um professor
+      if (userRole === 'professor') {
+        query = query.eq('teacher_id', userId);
+      }
+
+      const { data: scheduleData, error } = await query.order('day_of_week').order('start_time');
+
+      if (error) throw error;
+
+      const dayNames = ['Segunda-feira', 'Terça-feira', 'Quarta-feira', 'Quinta-feira', 'Sexta-feira'];
+      
+      const formattedSchedule = scheduleData?.map(item => ({
+        id: item.id,
+        day: dayNames[item.day_of_week - 1],
+        time: `${item.start_time.slice(0, 5)} - ${item.end_time.slice(0, 5)}`,
+        subject: item.subject.name,
+        class: userRole === 'aluno' ? 'Minha Turma' : item.class.name,
+        teacher: userRole === 'professor' ? 'Eu' : item.teacher.full_name,
+        room: `Sala ${Math.floor(Math.random() * 300) + 100}` // Simulado
+      })) || [];
+
+      setSchedule(formattedSchedule);
+    } catch (error) {
+      console.error('Erro ao carregar horários:', error);
+      toast({
+        title: "Erro",
+        description: "Não foi possível carregar os horários",
+        variant: "destructive"
+      });
+    } finally {
+      setLoading(false);
+    }
   };
 
   const groupScheduleByDay = () => {
