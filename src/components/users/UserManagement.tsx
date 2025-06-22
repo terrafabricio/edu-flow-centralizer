@@ -12,15 +12,14 @@ import { Plus, Users, Edit, Trash2, UserCheck, UserX } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 
-type UserRole = 'aluno' | 'professor' | 'coordenador' | 'diretor' | 'pai_mae';
+type UserRole = 'student' | 'teacher' | 'coord' | 'admin';
 
 interface UserData {
   id: string;
   full_name: string;
   email: string;
   role: UserRole;
-  enrollment_number?: string;
-  phone?: string;
+  active: boolean;
   created_at: string;
 }
 
@@ -39,9 +38,7 @@ const UserManagement = ({ userRole }: UserManagementProps) => {
   const [formData, setFormData] = useState({
     full_name: '',
     email: '',
-    role: 'aluno' as UserRole,
-    enrollment_number: '',
-    phone: '',
+    role: 'student' as UserRole,
     password: ''
   });
 
@@ -80,9 +77,7 @@ const UserManagement = ({ userRole }: UserManagementProps) => {
           .from('profiles')
           .update({
             full_name: formData.full_name,
-            role: formData.role,
-            enrollment_number: formData.enrollment_number || null,
-            phone: formData.phone || null
+            role: formData.role
           })
           .eq('id', editingUser.id);
 
@@ -100,9 +95,7 @@ const UserManagement = ({ userRole }: UserManagementProps) => {
           options: {
             data: {
               full_name: formData.full_name,
-              role: formData.role,
-              enrollment_number: formData.enrollment_number,
-              phone: formData.phone
+              role: formData.role
             }
           }
         });
@@ -117,7 +110,7 @@ const UserManagement = ({ userRole }: UserManagementProps) => {
 
       setIsDialogOpen(false);
       setEditingUser(null);
-      setFormData({ full_name: '', email: '', role: 'aluno', enrollment_number: '', phone: '', password: '' });
+      setFormData({ full_name: '', email: '', role: 'student', password: '' });
       fetchUsers();
     } catch (error: any) {
       console.error('Erro ao salvar usuário:', error);
@@ -135,8 +128,6 @@ const UserManagement = ({ userRole }: UserManagementProps) => {
       full_name: user.full_name,
       email: user.email,
       role: user.role,
-      enrollment_number: user.enrollment_number || '',
-      phone: user.phone || '',
       password: ''
     });
     setIsDialogOpen(true);
@@ -176,23 +167,25 @@ const UserManagement = ({ userRole }: UserManagementProps) => {
 
   const getRoleColor = (role: string) => {
     switch (role) {
-      case 'diretor': return 'bg-red-100 text-red-800';
-      case 'coordenador': return 'bg-blue-100 text-blue-800';
-      case 'professor': return 'bg-green-100 text-green-800';
-      case 'aluno': return 'bg-gray-100 text-gray-800';
-      case 'pai_mae': return 'bg-purple-100 text-purple-800';
+      case 'admin': return 'bg-red-100 text-red-800';
+      case 'coord': return 'bg-blue-100 text-blue-800';
+      case 'teacher': return 'bg-green-100 text-green-800';
+      case 'student': return 'bg-gray-100 text-gray-800';
       default: return 'bg-gray-100 text-gray-800';
     }
   };
 
   const getRoleLabel = (role: string) => {
     switch (role) {
-      case 'pai_mae': return 'Pai/Mãe';
+      case 'admin': return 'Administrador';
+      case 'coord': return 'Coordenador';
+      case 'teacher': return 'Professor';
+      case 'student': return 'Aluno';
       default: return role;
     }
   };
 
-  const canManageUsers = userRole === 'diretor';
+  const canManageUsers = userRole === 'admin';
 
   if (!canManageUsers) {
     return (
@@ -201,7 +194,7 @@ const UserManagement = ({ userRole }: UserManagementProps) => {
           <UserX className="h-16 w-16 text-muted-foreground mx-auto mb-4" />
           <h2 className="text-2xl font-semibold mb-2">Acesso Negado</h2>
           <p className="text-muted-foreground">
-            Apenas diretores podem gerenciar usuários.
+            Apenas administradores podem gerenciar usuários.
           </p>
         </div>
       </div>
@@ -218,7 +211,7 @@ const UserManagement = ({ userRole }: UserManagementProps) => {
         <div>
           <h1 className="text-3xl font-bold tracking-tight">Gestão de Usuários</h1>
           <p className="text-muted-foreground">
-            Gerencie professores, coordenadores, alunos e responsáveis
+            Gerencie professores, coordenadores, alunos e administradores
           </p>
         </div>
         
@@ -283,33 +276,12 @@ const UserManagement = ({ userRole }: UserManagementProps) => {
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="aluno">Aluno</SelectItem>
-                    <SelectItem value="professor">Professor</SelectItem>
-                    <SelectItem value="coordenador">Coordenador</SelectItem>
-                    <SelectItem value="diretor">Diretor</SelectItem>
-                    <SelectItem value="pai_mae">Pai/Mãe</SelectItem>
+                    <SelectItem value="student">Aluno</SelectItem>
+                    <SelectItem value="teacher">Professor</SelectItem>
+                    <SelectItem value="coord">Coordenador</SelectItem>
+                    <SelectItem value="admin">Administrador</SelectItem>
                   </SelectContent>
                 </Select>
-              </div>
-
-              <div>
-                <Label htmlFor="enrollment_number">Número de Matrícula</Label>
-                <Input
-                  id="enrollment_number"
-                  value={formData.enrollment_number}
-                  onChange={(e) => setFormData({...formData, enrollment_number: e.target.value})}
-                  placeholder="Opcional"
-                />
-              </div>
-
-              <div>
-                <Label htmlFor="phone">Telefone</Label>
-                <Input
-                  id="phone"
-                  value={formData.phone}
-                  onChange={(e) => setFormData({...formData, phone: e.target.value})}
-                  placeholder="Opcional"
-                />
               </div>
               
               <div className="flex justify-end gap-2">
@@ -328,11 +300,10 @@ const UserManagement = ({ userRole }: UserManagementProps) => {
       <Tabs value={activeTab} onValueChange={setActiveTab}>
         <TabsList>
           <TabsTrigger value="all">Todos</TabsTrigger>
-          <TabsTrigger value="diretor">Diretores</TabsTrigger>
-          <TabsTrigger value="coordenador">Coordenadores</TabsTrigger>
-          <TabsTrigger value="professor">Professores</TabsTrigger>
-          <TabsTrigger value="aluno">Alunos</TabsTrigger>
-          <TabsTrigger value="pai_mae">Responsáveis</TabsTrigger>
+          <TabsTrigger value="admin">Administradores</TabsTrigger>
+          <TabsTrigger value="coord">Coordenadores</TabsTrigger>
+          <TabsTrigger value="teacher">Professores</TabsTrigger>
+          <TabsTrigger value="student">Alunos</TabsTrigger>
         </TabsList>
 
         <TabsContent value={activeTab} className="mt-6">
@@ -345,9 +316,6 @@ const UserManagement = ({ userRole }: UserManagementProps) => {
                       <div className="flex-1">
                         <h3 className="font-semibold">{user.full_name}</h3>
                         <p className="text-sm text-muted-foreground">{user.email}</p>
-                        {user.enrollment_number && (
-                          <p className="text-xs text-muted-foreground">Mat: {user.enrollment_number}</p>
-                        )}
                       </div>
                       <Badge className={getRoleColor(user.role)}>
                         {getRoleLabel(user.role)}

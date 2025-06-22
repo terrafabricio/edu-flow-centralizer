@@ -14,10 +14,9 @@ import { useToast } from "@/hooks/use-toast";
 interface ClassData {
   id: string;
   name: string;
-  grade: string;
   year: number;
-  teacher_id?: string;
-  teacher_name?: string;
+  coord_id?: string;
+  coord_name?: string;
   student_count: number;
   created_at: string;
 }
@@ -28,7 +27,7 @@ interface ClassManagementProps {
 
 const ClassManagement = ({ userRole }: ClassManagementProps) => {
   const [classes, setClasses] = useState<ClassData[]>([]);
-  const [teachers, setTeachers] = useState<any[]>([]);
+  const [coordinators, setCoordinators] = useState<any[]>([]);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [editingClass, setEditingClass] = useState<ClassData | null>(null);
   const [loading, setLoading] = useState(true);
@@ -36,14 +35,13 @@ const ClassManagement = ({ userRole }: ClassManagementProps) => {
 
   const [formData, setFormData] = useState({
     name: '',
-    grade: '',
     year: new Date().getFullYear(),
-    teacher_id: ''
+    coord_id: ''
   });
 
   useEffect(() => {
     fetchClasses();
-    fetchTeachers();
+    fetchCoordinators();
   }, []);
 
   const fetchClasses = async () => {
@@ -52,19 +50,28 @@ const ClassManagement = ({ userRole }: ClassManagementProps) => {
         .from('classes')
         .select(`
           *,
-          teacher:profiles!classes_teacher_id_fkey(full_name),
-          students:student_classes(count)
+          coord:profiles!classes_coord_id_fkey(full_name)
         `);
 
       if (error) throw error;
 
-      const formattedClasses = data?.map(cls => ({
-        ...cls,
-        teacher_name: cls.teacher?.full_name || 'Sem professor',
-        student_count: cls.students?.[0]?.count || 0
-      })) || [];
+      // Count students for each class
+      const classesWithCounts = await Promise.all(
+        (data || []).map(async (cls) => {
+          const { count } = await supabase
+            .from('students')
+            .select('*', { count: 'exact', head: true })
+            .eq('class_id', cls.id);
 
-      setClasses(formattedClasses);
+          return {
+            ...cls,
+            coord_name: cls.coord?.full_name || 'Sem coordenador',
+            student_count: count || 0
+          };
+        })
+      );
+
+      setClasses(classesWithCounts);
     } catch (error) {
       console.error('Erro ao carregar turmas:', error);
       toast({
@@ -77,17 +84,17 @@ const ClassManagement = ({ userRole }: ClassManagementProps) => {
     }
   };
 
-  const fetchTeachers = async () => {
+  const fetchCoordinators = async () => {
     try {
       const { data, error } = await supabase
         .from('profiles')
         .select('id, full_name')
-        .eq('role', 'professor');
+        .eq('role', 'coord');
 
       if (error) throw error;
-      setTeachers(data || []);
+      setCoordinators(data || []);
     } catch (error) {
-      console.error('Erro ao carregar professores:', error);
+      console.error('Erro ao carregar coordenadores:', error);
     }
   };
 
@@ -122,7 +129,7 @@ const ClassManagement = ({ userRole }: ClassManagementProps) => {
 
       setIsDialogOpen(false);
       setEditingClass(null);
-      setFormData({ name: '', grade: '', year: new Date().getFullYear(), teacher_id: '' });
+      setFormData({ name: '', year: new Date().getFullYear(), coord_id: '' });
       fetchClasses();
     } catch (error) {
       console.error('Erro ao salvar turma:', error);
@@ -138,9 +145,8 @@ const ClassManagement = ({ userRole }: ClassManagementProps) => {
     setEditingClass(classData);
     setFormData({
       name: classData.name,
-      grade: classData.grade,
       year: classData.year,
-      teacher_id: classData.teacher_id || ''
+      coord_id: classData.coord_id || ''
     });
     setIsDialogOpen(true);
   };
@@ -172,7 +178,7 @@ const ClassManagement = ({ userRole }: ClassManagementProps) => {
     }
   };
 
-  const canManageClasses = ['diretor', 'coordenador'].includes(userRole);
+  const canManageClasses = ['admin', 'coord'].includes(userRole);
 
   if (loading) {
     return <div className="flex justify-center p-8">Carregando turmas...</div>;
@@ -213,57 +219,35 @@ const ClassManagement = ({ userRole }: ClassManagementProps) => {
                     id="name"
                     value={formData.name}
                     onChange={(e) => setFormData({...formData, name: e.target.value})}
-                    placeholder="Ex: 1º Ano A"
+                    placeholder="Ex: 8º Ano A"
                     required
                   />
                 </div>
                 
-                <div className="grid grid-cols-2 gap-4">
-                  <div>
-                    <Label htmlFor="grade">Série</Label>
-                    <Select value={formData.grade} onValueChange={(value) => setFormData({...formData, grade: value})}>
-                      <SelectTrigger>
-                        <SelectValue placeholder="Selecione a série" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="1º ano">1º Ano</SelectItem>
-                        <SelectItem value="2º ano">2º Ano</SelectItem>
-                        <SelectItem value="3º ano">3º Ano</SelectItem>
-                        <SelectItem value="4º ano">4º Ano</SelectItem>
-                        <SelectItem value="5º ano">5º Ano</SelectItem>
-                        <SelectItem value="6º ano">6º Ano</SelectItem>
-                        <SelectItem value="7º ano">7º Ano</SelectItem>
-                        <SelectItem value="8º ano">8º Ano</SelectItem>
-                        <SelectItem value="9º ano">9º Ano</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
-                  
-                  <div>
-                    <Label htmlFor="year">Ano Letivo</Label>
-                    <Input
-                      id="year"
-                      type="number"
-                      value={formData.year}
-                      onChange={(e) => setFormData({...formData, year: parseInt(e.target.value)})}
-                      min="2020"
-                      max="2030"
-                      required
-                    />
-                  </div>
+                <div>
+                  <Label htmlFor="year">Ano Letivo</Label>
+                  <Input
+                    id="year"
+                    type="number"
+                    value={formData.year}
+                    onChange={(e) => setFormData({...formData, year: parseInt(e.target.value)})}
+                    min="2020"
+                    max="2030"
+                    required
+                  />
                 </div>
                 
                 <div>
-                  <Label htmlFor="teacher">Professor Responsável</Label>
-                  <Select value={formData.teacher_id} onValueChange={(value) => setFormData({...formData, teacher_id: value})}>
+                  <Label htmlFor="coord">Coordenador Responsável</Label>
+                  <Select value={formData.coord_id} onValueChange={(value) => setFormData({...formData, coord_id: value})}>
                     <SelectTrigger>
-                      <SelectValue placeholder="Selecione um professor" />
+                      <SelectValue placeholder="Selecione um coordenador" />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="">Sem professor</SelectItem>
-                      {teachers.map((teacher) => (
-                        <SelectItem key={teacher.id} value={teacher.id}>
-                          {teacher.full_name}
+                      <SelectItem value="">Sem coordenador</SelectItem>
+                      {coordinators.map((coord) => (
+                        <SelectItem key={coord.id} value={coord.id}>
+                          {coord.full_name}
                         </SelectItem>
                       ))}
                     </SelectContent>
@@ -291,7 +275,7 @@ const ClassManagement = ({ userRole }: ClassManagementProps) => {
               <div className="flex justify-between items-start">
                 <div>
                   <CardTitle className="text-lg">{classData.name}</CardTitle>
-                  <CardDescription>{classData.grade} - {classData.year}</CardDescription>
+                  <CardDescription>{classData.year}</CardDescription>
                 </div>
                 {canManageClasses && (
                   <div className="flex gap-1">
@@ -319,7 +303,7 @@ const ClassManagement = ({ userRole }: ClassManagementProps) => {
               <div className="space-y-2">
                 <div className="flex items-center text-sm text-muted-foreground">
                   <BookOpen className="h-4 w-4 mr-2" />
-                  {classData.teacher_name}
+                  {classData.coord_name}
                 </div>
                 <div className="flex items-center justify-between">
                   <div className="flex items-center text-sm text-muted-foreground">
@@ -327,7 +311,7 @@ const ClassManagement = ({ userRole }: ClassManagementProps) => {
                     {classData.student_count} alunos
                   </div>
                   <Badge variant="secondary">
-                    {classData.grade}
+                    {classData.year}
                   </Badge>
                 </div>
               </div>

@@ -37,24 +37,29 @@ const DashboardHome = ({ profile }: DashboardHomeProps) => {
       const { count: studentsCount } = await supabase
         .from('profiles')
         .select('*', { count: 'exact', head: true })
-        .eq('role', 'aluno');
+        .eq('role', 'student');
 
       // Contar professores
       const { count: teachersCount } = await supabase
         .from('profiles')
         .select('*', { count: 'exact', head: true })
-        .eq('role', 'professor');
+        .eq('role', 'teacher');
 
       // Contar turmas
       const { count: classesCount } = await supabase
         .from('classes')
         .select('*', { count: 'exact', head: true });
 
+      // Contar disciplinas
+      const { count: subjectsCount } = await supabase
+        .from('subjects')
+        .select('*', { count: 'exact', head: true });
+
       setStats({
         totalStudents: studentsCount || 0,
         totalTeachers: teachersCount || 0,
         totalClasses: classesCount || 0,
-        totalSubjects: 0 // Será implementado quando criarmos a tabela de disciplinas
+        totalSubjects: subjectsCount || 0
       });
     } catch (error) {
       console.error('Erro ao carregar estatísticas:', error);
@@ -102,7 +107,7 @@ const DashboardHome = ({ profile }: DashboardHomeProps) => {
     ];
 
     switch (profile?.role) {
-      case 'diretor':
+      case 'admin':
         return [
           ...baseCards,
           {
@@ -113,9 +118,9 @@ const DashboardHome = ({ profile }: DashboardHomeProps) => {
             color: "text-orange-600"
           }
         ];
-      case 'coordenador':
+      case 'coord':
         return baseCards;
-      case 'professor':
+      case 'teacher':
         return [
           {
             title: "Minhas Turmas",
@@ -132,7 +137,7 @@ const DashboardHome = ({ profile }: DashboardHomeProps) => {
             color: "text-blue-600"
           }
         ];
-      case 'aluno':
+      case 'student':
         return [
           {
             title: "Minhas Disciplinas",
@@ -156,25 +161,25 @@ const DashboardHome = ({ profile }: DashboardHomeProps) => {
 
   const getQuickActions = () => {
     switch (profile?.role) {
-      case 'diretor':
+      case 'admin':
         return [
           { title: "Cadastrar Usuário", description: "Adicionar novo membro", action: "users" },
           { title: "Nova Turma", description: "Criar nova turma", action: "classes" },
           { title: "Relatórios", description: "Ver relatórios gerais", action: "reports" }
         ];
-      case 'coordenador':
+      case 'coord':
         return [
           { title: "Gerenciar Turmas", description: "Organizar turmas", action: "classes" },
           { title: "Cadastrar Aluno", description: "Novo estudante", action: "students" },
           { title: "Horários", description: "Organizar horários", action: "schedule" }
         ];
-      case 'professor':
+      case 'teacher':
         return [
           { title: "Lançar Notas", description: "Registrar avaliações", action: "grades" },
           { title: "Ver Turmas", description: "Minhas turmas", action: "classes" },
           { title: "Horários", description: "Meus horários", action: "schedule" }
         ];
-      case 'aluno':
+      case 'student':
         return [
           { title: "Ver Notas", description: "Consultar avaliações", action: "grades" },
           { title: "Horários", description: "Meus horários", action: "schedule" },
@@ -298,7 +303,7 @@ const DashboardHome = ({ profile }: DashboardHomeProps) => {
                 <p className="text-sm font-medium text-blue-900">Sistema atualizado</p>
                 <p className="text-xs text-blue-700">Novas funcionalidades disponíveis</p>
               </div>
-              {profile?.role === 'professor' && (
+              {profile?.role === 'teacher' && (
                 <div className="p-2 bg-yellow-50 rounded-md">
                   <p className="text-sm font-medium text-yellow-900">Lembrete</p>
                   <p className="text-xs text-yellow-700">Prazo para lançamento de notas até sexta</p>

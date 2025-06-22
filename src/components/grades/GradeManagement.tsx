@@ -7,7 +7,7 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { BookOpen, Award, TrendingUp, User } from "lucide-react";
+import { BookOpen, Award, TrendingUp } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 
@@ -16,16 +16,23 @@ interface GradeData {
   student_name: string;
   class_name: string;
   subject: string;
-  grade: number;
-  assessment_type: string;
+  score: number;
+  assessment_name: string;
   assessment_date: string;
-  observations?: string;
 }
 
 interface Subject {
   id: string;
   name: string;
-  description?: string;
+}
+
+interface Assessment {
+  id: string;
+  name: string;
+  class_id: string;
+  subject_id: string;
+  date: string;
+  max_score: number;
 }
 
 interface GradeManagementProps {
@@ -38,18 +45,15 @@ const GradeManagement = ({ userRole, userId }: GradeManagementProps) => {
   const [classes, setClasses] = useState<any[]>([]);
   const [students, setStudents] = useState<any[]>([]);
   const [subjects, setSubjects] = useState<Subject[]>([]);
+  const [assessments, setAssessments] = useState<Assessment[]>([]);
   const [loading, setLoading] = useState(true);
-  const [activeTab, setActiveTab] = useState(userRole === 'aluno' ? 'view' : 'manage');
+  const [activeTab, setActiveTab] = useState(userRole === 'student' ? 'view' : 'manage');
   const { toast } = useToast();
 
   const [formData, setFormData] = useState({
     student_id: '',
-    class_id: '',
-    subject_id: '',
-    grade: '',
-    assessment_type: 'prova',
-    assessment_date: new Date().toISOString().split('T')[0],
-    observations: ''
+    assessment_id: '',
+    score: '',
   });
 
   useEffect(() => {
@@ -67,23 +71,23 @@ const GradeManagement = ({ userRole, userId }: GradeManagementProps) => {
       if (subjectsError) throw subjectsError;
       setSubjects(subjectsData || []);
 
-      if (userRole === 'professor') {
-        // Buscar alocações do professor
-        const { data: allocations, error: allocError } = await supabase
-          .from('teacher_allocations')
+      if (userRole === 'teacher') {
+        // Buscar turmas do professor via teacher_subjects
+        const { data: teacherSubjects, error: teacherError } = await supabase
+          .from('teacher_subjects')
           .select(`
             *,
-            class:classes(*),
-            subject:subjects(*)
+            classes(*),
+            subjects(*)
           `)
           .eq('teacher_id', userId);
 
-        if (allocError) throw allocError;
+        if (teacherError) throw teacherError;
 
         // Extrair turmas únicas
-        const uniqueClasses = allocations?.reduce((acc: any[], curr) => {
-          if (!acc.find(c => c.id === curr.class.id)) {
-            acc.push(curr.class);
+        const uniqueClasses = teacherSubjects?.reduce((acc: any[], curr) => {
+          if (!acc.find(c => c.id === curr.classes.id)) {
+            acc.push(curr.classes);
           }
           return acc;
         }, []) || [];
@@ -92,60 +96,34 @@ const GradeManagement = ({ userRole, userId }: GradeManagementProps) => {
         // Buscar alunos das turmas do professor
         if (uniqueClasses.length > 0) {
           const classIds = uniqueClasses.map(cls => cls.id);
-          const { data: classStudents, error: studentError } = await supabase
-            .from('student_classes')
+          const { data: studentsData, error: studentError } = await supabase
+            .from('students')
             .select(`
-              student_id,
-              student:profiles!student_classes_student_id_fkey(id, full_name, enrollment_number)
+              *,
+              profiles(*)
             `)
             .in('class_id', classIds);
 
           if (studentError) throw studentError;
-          
-          const uniqueStudents = classStudents?.reduce((acc: any[], curr) => {
-            if (!acc.find(s => s.id === curr.student.id)) {
-              acc.push(curr.student);
-            }
-            return acc;
-          }, []) || [];
-          
-          setStudents(uniqueStudents);
+          setStudents(studentsData || []);
         }
 
-        // Buscar notas lançadas pelo professor
-        const { data: teacherGrades, error: gradesError } = await supabase
-          .from('grades')
-          .select(`
-            *,
-            student:profiles!grades_student_id_fkey(full_name),
-            class:classes(name),
-            subject:subjects(name)
-          `)
-          .eq('teacher_id', userId);
+        // Buscar avaliações
+        const { data: assessmentsData, error: assessError } = await supabase
+          .from('assessments')
+          .select('*')
+          .order('date', { ascending: false });
 
-        if (gradesError) throw gradesError;
+        if (assessError) throw assessError;
+        setAssessments(assessmentsData || []);
 
-        const formattedGrades = teacherGrades?.map(grade => ({
-          id: grade.id,
-          student_name: grade.student.full_name,
-          class_name: grade.class.name,
-          subject: grade.subject.name,
-          grade: grade.grade,
-          assessment_type: grade.assessment_type,
-          assessment_date: grade.assessment_date,
-          observations: grade.observations
-        })) || [];
-
-        setGrades(formattedGrades);
-
-      } else if (userRole === 'aluno') {
+      } else if (userRole === 'student') {
         // Buscar notas do aluno específico
         const { data: studentGrades, error: gradesError } = await supabase
           .from('grades')
           .select(`
             *,
-            class:classes(name),
-            subject:subjects(name)
+            assessments(name, date, classes(name), subjects(name))
           `)
           .eq('student_id', userId);
 
@@ -154,12 +132,11 @@ const GradeManagement = ({ userRole, userId }: GradeManagementProps) => {
         const formattedGrades = studentGrades?.map(grade => ({
           id: grade.id,
           student_name: 'Minhas Notas',
-          class_name: grade.class.name,
-          subject: grade.subject.name,
-          grade: grade.grade,
-          assessment_type: grade.assessment_type,
-          assessment_date: grade.assessment_date,
-          observations: grade.observations
+          class_name: grade.assessments?.classes?.name || 'N/A',
+          subject: grade.assessments?.subjects?.name || 'N/A',
+          score: grade.score || 0,
+          assessment_name: grade.assessments?.name || 'N/A',
+          assessment_date: grade.assessments?.date || ''
         })) || [];
 
         setGrades(formattedGrades);
@@ -184,13 +161,8 @@ const GradeManagement = ({ userRole, userId }: GradeManagementProps) => {
         .from('grades')
         .insert({
           student_id: formData.student_id,
-          class_id: formData.class_id,
-          subject_id: formData.subject_id,
-          teacher_id: userId,
-          grade: parseFloat(formData.grade),
-          assessment_type: formData.assessment_type,
-          assessment_date: formData.assessment_date,
-          observations: formData.observations || null
+          assessment_id: formData.assessment_id,
+          score: parseFloat(formData.score)
         });
 
       if (error) throw error;
@@ -202,12 +174,8 @@ const GradeManagement = ({ userRole, userId }: GradeManagementProps) => {
       
       setFormData({
         student_id: '',
-        class_id: '',
-        subject_id: '',
-        grade: '',
-        assessment_type: 'prova',
-        assessment_date: new Date().toISOString().split('T')[0],
-        observations: ''
+        assessment_id: '',
+        score: ''
       });
 
       fetchInitialData();
@@ -221,16 +189,16 @@ const GradeManagement = ({ userRole, userId }: GradeManagementProps) => {
     }
   };
 
-  const getGradeColor = (grade: number) => {
-    if (grade >= 9) return 'text-green-600';
-    if (grade >= 7) return 'text-blue-600';
-    if (grade >= 5) return 'text-yellow-600';
+  const getScoreColor = (score: number) => {
+    if (score >= 9) return 'text-green-600';
+    if (score >= 7) return 'text-blue-600';
+    if (score >= 5) return 'text-yellow-600';
     return 'text-red-600';
   };
 
   const calculateAverage = (): number => {
     if (grades.length === 0) return 0;
-    const sum = grades.reduce((acc, grade) => acc + grade.grade, 0);
+    const sum = grades.reduce((acc, grade) => acc + grade.score, 0);
     return sum / grades.length;
   };
 
@@ -242,10 +210,10 @@ const GradeManagement = ({ userRole, userId }: GradeManagementProps) => {
     <div className="space-y-6">
       <div>
         <h1 className="text-3xl font-bold tracking-tight">
-          {userRole === 'aluno' ? 'Minhas Notas' : 'Gestão de Notas'}
+          {userRole === 'student' ? 'Minhas Notas' : 'Gestão de Notas'}
         </h1>
         <p className="text-muted-foreground">
-          {userRole === 'aluno' 
+          {userRole === 'student' 
             ? 'Acompanhe seu desempenho acadêmico'
             : 'Lance e gerencie as notas dos alunos'
           }
@@ -254,13 +222,13 @@ const GradeManagement = ({ userRole, userId }: GradeManagementProps) => {
 
       <Tabs value={activeTab} onValueChange={setActiveTab}>
         <TabsList>
-          {userRole === 'professor' && (
+          {userRole === 'teacher' && (
             <>
               <TabsTrigger value="manage">Lançar Notas</TabsTrigger>
               <TabsTrigger value="view">Consultar Notas</TabsTrigger>
             </>
           )}
-          {userRole === 'aluno' && (
+          {userRole === 'student' && (
             <>
               <TabsTrigger value="view">Minhas Notas</TabsTrigger>
               <TabsTrigger value="summary">Resumo</TabsTrigger>
@@ -268,7 +236,7 @@ const GradeManagement = ({ userRole, userId }: GradeManagementProps) => {
           )}
         </TabsList>
 
-        {userRole === 'professor' && (
+        {userRole === 'teacher' && (
           <TabsContent value="manage">
             <Card>
               <CardHeader>
@@ -281,22 +249,6 @@ const GradeManagement = ({ userRole, userId }: GradeManagementProps) => {
                 <form onSubmit={handleSubmit} className="space-y-4">
                   <div className="grid grid-cols-2 gap-4">
                     <div>
-                      <Label htmlFor="class_id">Turma</Label>
-                      <Select value={formData.class_id} onValueChange={(value) => setFormData({...formData, class_id: value})}>
-                        <SelectTrigger>
-                          <SelectValue placeholder="Selecione a turma" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {classes.map((cls) => (
-                            <SelectItem key={cls.id} value={cls.id}>
-                              {cls.name}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                    </div>
-                    
-                    <div>
                       <Label htmlFor="student_id">Aluno</Label>
                       <Select value={formData.student_id} onValueChange={(value) => setFormData({...formData, student_id: value})}>
                         <SelectTrigger>
@@ -305,25 +257,7 @@ const GradeManagement = ({ userRole, userId }: GradeManagementProps) => {
                         <SelectContent>
                           {students.map((student) => (
                             <SelectItem key={student.id} value={student.id}>
-                              {student.full_name}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                    </div>
-                  </div>
-                  
-                  <div className="grid grid-cols-3 gap-4">
-                    <div>
-                      <Label htmlFor="subject_id">Disciplina</Label>
-                      <Select value={formData.subject_id} onValueChange={(value) => setFormData({...formData, subject_id: value})}>
-                        <SelectTrigger>
-                          <SelectValue placeholder="Selecione a disciplina" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {subjects.map((subject) => (
-                            <SelectItem key={subject.id} value={subject.id}>
-                              {subject.name}
+                              {student.profiles?.full_name || 'Nome não encontrado'}
                             </SelectItem>
                           ))}
                         </SelectContent>
@@ -331,53 +265,33 @@ const GradeManagement = ({ userRole, userId }: GradeManagementProps) => {
                     </div>
                     
                     <div>
-                      <Label htmlFor="grade">Nota</Label>
-                      <Input
-                        id="grade"
-                        type="number"
-                        min="0"
-                        max="10"
-                        step="0.1"
-                        value={formData.grade}
-                        onChange={(e) => setFormData({...formData, grade: e.target.value})}
-                        required
-                      />
-                    </div>
-                    
-                    <div>
-                      <Label htmlFor="assessment_type">Tipo de Avaliação</Label>
-                      <Select value={formData.assessment_type} onValueChange={(value) => setFormData({...formData, assessment_type: value})}>
+                      <Label htmlFor="assessment_id">Avaliação</Label>
+                      <Select value={formData.assessment_id} onValueChange={(value) => setFormData({...formData, assessment_id: value})}>
                         <SelectTrigger>
-                          <SelectValue />
+                          <SelectValue placeholder="Selecione a avaliação" />
                         </SelectTrigger>
                         <SelectContent>
-                          <SelectItem value="prova">Prova</SelectItem>
-                          <SelectItem value="trabalho">Trabalho</SelectItem>
-                          <SelectItem value="seminario">Seminário</SelectItem>
-                          <SelectItem value="participacao">Participação</SelectItem>
+                          {assessments.map((assessment) => (
+                            <SelectItem key={assessment.id} value={assessment.id}>
+                              {assessment.name}
+                            </SelectItem>
+                          ))}
                         </SelectContent>
                       </Select>
                     </div>
                   </div>
                   
                   <div>
-                    <Label htmlFor="assessment_date">Data da Avaliação</Label>
+                    <Label htmlFor="score">Nota</Label>
                     <Input
-                      id="assessment_date"
-                      type="date"
-                      value={formData.assessment_date}
-                      onChange={(e) => setFormData({...formData, assessment_date: e.target.value})}
+                      id="score"
+                      type="number"
+                      min="0"
+                      max="10"
+                      step="0.1"
+                      value={formData.score}
+                      onChange={(e) => setFormData({...formData, score: e.target.value})}
                       required
-                    />
-                  </div>
-                  
-                  <div>
-                    <Label htmlFor="observations">Observações</Label>
-                    <Input
-                      id="observations"
-                      value={formData.observations}
-                      onChange={(e) => setFormData({...formData, observations: e.target.value})}
-                      placeholder="Observações opcionais"
                     />
                   </div>
                   
@@ -401,7 +315,7 @@ const GradeManagement = ({ userRole, userId }: GradeManagementProps) => {
                       <div>
                         <h3 className="font-semibold">{grade.subject}</h3>
                         <p className="text-sm text-muted-foreground">
-                          {grade.class_name} • {grade.assessment_type}
+                          {grade.class_name} • {grade.assessment_name}
                         </p>
                         <p className="text-xs text-muted-foreground">
                           {new Date(grade.assessment_date).toLocaleDateString('pt-BR')}
@@ -409,19 +323,14 @@ const GradeManagement = ({ userRole, userId }: GradeManagementProps) => {
                       </div>
                     </div>
                     <div className="text-right">
-                      <div className={`text-2xl font-bold ${getGradeColor(grade.grade)}`}>
-                        {grade.grade.toFixed(1)}
+                      <div className={`text-2xl font-bold ${getScoreColor(grade.score)}`}>
+                        {grade.score.toFixed(1)}
                       </div>
                       <Badge variant="outline" className="mt-1">
-                        {grade.assessment_type}
+                        Prova
                       </Badge>
                     </div>
                   </div>
-                  {grade.observations && (
-                    <div className="mt-3 p-2 bg-muted rounded-md">
-                      <p className="text-sm">{grade.observations}</p>
-                    </div>
-                  )}
                 </CardContent>
               </Card>
             ))}
@@ -432,7 +341,7 @@ const GradeManagement = ({ userRole, userId }: GradeManagementProps) => {
                   <Award className="h-12 w-12 text-muted-foreground mb-4" />
                   <h3 className="text-lg font-semibold mb-2">Nenhuma nota encontrada</h3>
                   <p className="text-muted-foreground text-center">
-                    {userRole === 'aluno' 
+                    {userRole === 'student' 
                       ? "Suas notas aparecerão aqui quando forem lançadas pelos professores."
                       : "Comece lançando a primeira nota na aba 'Lançar Notas'."
                     }
@@ -443,7 +352,7 @@ const GradeManagement = ({ userRole, userId }: GradeManagementProps) => {
           </div>
         </TabsContent>
 
-        {userRole === 'aluno' && (
+        {userRole === 'student' && (
           <TabsContent value="summary">
             <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
               <Card>
@@ -452,7 +361,7 @@ const GradeManagement = ({ userRole, userId }: GradeManagementProps) => {
                   <TrendingUp className="h-4 w-4 text-muted-foreground" />
                 </CardHeader>
                 <CardContent>
-                  <div className={`text-2xl font-bold ${getGradeColor(calculateAverage())}`}>
+                  <div className={`text-2xl font-bold ${getScoreColor(calculateAverage())}`}>
                     {calculateAverage().toFixed(1)}
                   </div>
                   <p className="text-xs text-muted-foreground">
@@ -468,7 +377,7 @@ const GradeManagement = ({ userRole, userId }: GradeManagementProps) => {
                 </CardHeader>
                 <CardContent>
                   <div className="text-2xl font-bold text-green-600">
-                    {grades.length > 0 ? Math.max(...grades.map(g => g.grade)).toFixed(1) : '0.0'}
+                    {grades.length > 0 ? Math.max(...grades.map(g => g.score)).toFixed(1) : '0.0'}
                   </div>
                   <p className="text-xs text-muted-foreground">
                     Melhor desempenho
