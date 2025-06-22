@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -11,7 +10,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { School } from "lucide-react";
 
-type UserRole = 'diretor' | 'coordenador' | 'professor' | 'aluno';
+type UserRole = 'diretor' | 'coordenador' | 'professor' | 'aluno' | 'pai_mae';
 
 const Auth = () => {
   const [isLoading, setIsLoading] = useState(false);
@@ -212,6 +211,7 @@ const Auth = () => {
                       <SelectItem value="professor">Professor</SelectItem>
                       <SelectItem value="coordenador">Coordenador</SelectItem>
                       <SelectItem value="diretor">Diretor</SelectItem>
+                      <SelectItem value="pai_mae">Pai/Mãe</SelectItem>
                     </SelectContent>
                   </Select>
                 </div>

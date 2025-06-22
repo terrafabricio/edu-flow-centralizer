@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { supabase } from "@/integrations/supabase/client";
@@ -11,6 +10,7 @@ import UserManagement from '@/components/users/UserManagement';
 import GradeManagement from '@/components/grades/GradeManagement';
 import ReportsManagement from '@/components/reports/ReportsManagement';
 import ScheduleManagement from '@/components/schedule/ScheduleManagement';
+import SubjectManagement from '@/components/subjects/SubjectManagement';
 
 const Dashboard = () => {
   const [user, setUser] = useState<any>(null);
@@ -168,16 +168,7 @@ const Dashboard = () => {
       case 'schedule':
         return <ScheduleManagement userRole={profile?.role} userId={user?.id} />;
       case 'subjects':
-        return (
-          <div className="flex items-center justify-center h-64">
-            <div className="text-center">
-              <h2 className="text-2xl font-semibold mb-2">Disciplinas</h2>
-              <p className="text-muted-foreground">
-                Esta seção ainda está sendo desenvolvida.
-              </p>
-            </div>
-          </div>
-        );
+        return <SubjectManagement userRole={profile?.role} />;
       default:
         return (
           <div className="flex items-center justify-center h-64">
