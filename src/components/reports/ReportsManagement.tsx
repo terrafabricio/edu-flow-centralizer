@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -45,30 +44,30 @@ const ReportsManagement = ({ userRole }: ReportsManagementProps) => {
       const { count: studentsCount } = await supabase
         .from('profiles')
         .select('*', { count: 'exact', head: true })
-        .eq('role', 'aluno');
+        .eq('role', 'student');
 
       const { count: teachersCount } = await supabase
         .from('profiles')
         .select('*', { count: 'exact', head: true })
-        .eq('role', 'professor');
+        .eq('role', 'teacher');
 
       const { count: classesCount } = await supabase
         .from('classes')
         .select('*', { count: 'exact', head: true });
 
-      // Buscar distribuição por série
+      // Buscar distribuição por série (usando year da classe como aproximação)
       const { data: classes } = await supabase
         .from('classes')
-        .select('grade');
+        .select('year, name');
 
-      const gradeDistribution = classes?.reduce((acc: any, cls) => {
-        const grade = cls.grade;
-        acc[grade] = (acc[grade] || 0) + 1;
+      const yearDistribution = classes?.reduce((acc: any, cls) => {
+        const year = cls.year || 2025;
+        acc[year] = (acc[year] || 0) + 1;
         return acc;
       }, {}) || {};
 
-      const studentsByGrade = Object.entries(gradeDistribution).map(([grade, count]) => ({
-        grade,
+      const studentsByGrade = Object.entries(yearDistribution).map(([year, count]) => ({
+        grade: `Ano ${year}`,
         count
       }));
 
@@ -111,7 +110,7 @@ const ReportsManagement = ({ userRole }: ReportsManagementProps) => {
 
   const COLORS = ['#0088FE', '#00C49F', '#FFBB28', '#FF8042', '#8884D8'];
 
-  const canViewReports = ['diretor', 'coordenador'].includes(userRole);
+  const canViewReports = ['admin', 'coord'].includes(userRole);
 
   if (!canViewReports) {
     return (
@@ -120,7 +119,7 @@ const ReportsManagement = ({ userRole }: ReportsManagementProps) => {
           <FileText className="h-16 w-16 text-muted-foreground mx-auto mb-4" />
           <h2 className="text-2xl font-semibold mb-2">Acesso Negado</h2>
           <p className="text-muted-foreground">
-            Apenas diretores e coordenadores podem acessar relatórios.
+            Apenas administradores e coordenadores podem acessar relatórios.
           </p>
         </div>
       </div>

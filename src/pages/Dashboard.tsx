@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { supabase } from "@/integrations/supabase/client";
@@ -45,11 +46,27 @@ const Dashboard = () => {
         if (profileError && profileError.code === 'PGRST116') {
           console.log('Perfil não encontrado, criando novo perfil...');
           
+          // Mapear roles do português para inglês
+          const roleMapping: { [key: string]: 'admin' | 'coord' | 'teacher' | 'student' } = {
+            'diretor': 'admin',
+            'coordenador': 'coord',
+            'professor': 'teacher',
+            'aluno': 'student',
+            'pai_mae': 'student', // Mapeamento padrão para pai/mãe
+            'admin': 'admin',
+            'coord': 'coord',
+            'teacher': 'teacher',
+            'student': 'student'
+          };
+          
+          const userRole = (session.user.user_metadata?.role as string) || 'student';
+          const mappedRole = roleMapping[userRole] || 'student';
+          
           const newProfile = {
             id: session.user.id,
             full_name: session.user.user_metadata?.full_name || session.user.email?.split('@')[0] || 'Usuário',
             email: session.user.email || '',
-            role: (session.user.user_metadata?.role as 'diretor' | 'coordenador' | 'professor' | 'aluno') || 'aluno'
+            role: mappedRole
           };
           
           const { data: insertedProfile, error: insertError } = await supabase
@@ -112,11 +129,27 @@ const Dashboard = () => {
             .single();
 
           if (profileError && profileError.code === 'PGRST116') {
+            // Mapear roles do português para inglês
+            const roleMapping: { [key: string]: 'admin' | 'coord' | 'teacher' | 'student' } = {
+              'diretor': 'admin',
+              'coordenador': 'coord',
+              'professor': 'teacher',
+              'aluno': 'student',
+              'pai_mae': 'student',
+              'admin': 'admin',
+              'coord': 'coord',
+              'teacher': 'teacher',
+              'student': 'student'
+            };
+            
+            const userRole = (session.user.user_metadata?.role as string) || 'student';
+            const mappedRole = roleMapping[userRole] || 'student';
+            
             const newProfile = {
               id: session.user.id,
               full_name: session.user.user_metadata?.full_name || session.user.email?.split('@')[0] || 'Usuário',
               email: session.user.email || '',
-              role: (session.user.user_metadata?.role as 'diretor' | 'coordenador' | 'professor' | 'aluno') || 'aluno'
+              role: mappedRole
             };
             
             const { data: insertedProfile, error: insertError } = await supabase
