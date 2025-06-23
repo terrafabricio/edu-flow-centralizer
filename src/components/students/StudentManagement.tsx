@@ -51,7 +51,7 @@ const StudentManagement = ({ userRole }: StudentManagementProps) => {
 
   const fetchStudents = async () => {
     try {
-      // First get all student profiles
+      // Buscar perfis de estudantes
       const { data: profilesData, error: profilesError } = await supabase
         .from('profiles')
         .select('*')
@@ -59,7 +59,7 @@ const StudentManagement = ({ userRole }: StudentManagementProps) => {
 
       if (profilesError) throw profilesError;
 
-      // Then get student class relationships
+      // Para cada estudante, buscar a turma
       const studentIds = profilesData?.map(p => p.id) || [];
       
       if (studentIds.length === 0) {
@@ -67,30 +67,42 @@ const StudentManagement = ({ userRole }: StudentManagementProps) => {
         return;
       }
 
+      // Buscar relações estudante-turma
       const { data: studentClassData, error: studentClassError } = await supabase
         .from('student_classes')
-        .select(`
-          student_id,
-          class_id,
-          class:classes(
-            id,
-            name
-          )
-        `)
+        .select('student_id, class_id')
         .in('student_id', studentIds);
 
       if (studentClassError) {
-        console.error('Error fetching student classes:', studentClassError);
+        console.error('Erro ao buscar turmas dos estudantes:', studentClassError);
       }
 
-      // Combine the data
+      // Buscar nomes das turmas
+      const classIds = studentClassData?.map(sc => sc.class_id) || [];
+      let classData: any[] = [];
+      
+      if (classIds.length > 0) {
+        const { data: classesData, error: classesError } = await supabase
+          .from('classes')
+          .select('id, name')
+          .in('id', classIds);
+
+        if (classesError) {
+          console.error('Erro ao buscar turmas:', classesError);
+        } else {
+          classData = classesData || [];
+        }
+      }
+
+      // Combinar os dados
       const formattedStudents = profilesData?.map(profile => {
         const studentClass = studentClassData?.find(sc => sc.student_id === profile.id);
+        const classInfo = classData.find(c => c.id === studentClass?.class_id);
         
         return {
           ...profile,
-          enrollment_number: `EST${Date.now()}${Math.random().toString(36).substr(2, 3)}`, // Generate enrollment number
-          class_name: studentClass?.class?.name || 'Sem turma',
+          enrollment_number: `EST${Date.now()}${Math.random().toString(36).substr(2, 3)}`,
+          class_name: classInfo?.name || 'Sem turma',
           class_id: studentClass?.class_id || ''
         };
       }) || [];
