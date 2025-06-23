@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -50,29 +51,49 @@ const StudentManagement = ({ userRole }: StudentManagementProps) => {
 
   const fetchStudents = async () => {
     try {
-      const { data, error } = await supabase
+      // First get all student profiles
+      const { data: profilesData, error: profilesError } = await supabase
         .from('profiles')
+        .select('*')
+        .eq('role', 'student');
+
+      if (profilesError) throw profilesError;
+
+      // Then get student class relationships
+      const studentIds = profilesData?.map(p => p.id) || [];
+      
+      if (studentIds.length === 0) {
+        setStudents([]);
+        return;
+      }
+
+      const { data: studentClassData, error: studentClassError } = await supabase
+        .from('student_classes')
         .select(`
-          *,
-          student_classes(
+          student_id,
+          class_id,
+          class:classes(
             id,
-            class_id,
-            class:classes(
-              id,
-              name
-            )
+            name
           )
         `)
-        .eq('role', 'aluno');
+        .in('student_id', studentIds);
 
-      if (error) throw error;
+      if (studentClassError) {
+        console.error('Error fetching student classes:', studentClassError);
+      }
 
-      const formattedStudents = data?.map(student => ({
-        ...student,
-        enrollment_number: student.enrollment_number || `EST${Date.now()}`,
-        class_name: student.student_classes?.[0]?.class?.name || 'Sem turma',
-        class_id: student.student_classes?.[0]?.class_id || ''
-      })) || [];
+      // Combine the data
+      const formattedStudents = profilesData?.map(profile => {
+        const studentClass = studentClassData?.find(sc => sc.student_id === profile.id);
+        
+        return {
+          ...profile,
+          enrollment_number: `EST${Date.now()}${Math.random().toString(36).substr(2, 3)}`, // Generate enrollment number
+          class_name: studentClass?.class?.name || 'Sem turma',
+          class_id: studentClass?.class_id || ''
+        };
+      }) || [];
 
       setStudents(formattedStudents);
     } catch (error) {
@@ -91,7 +112,7 @@ const StudentManagement = ({ userRole }: StudentManagementProps) => {
     try {
       const { data, error } = await supabase
         .from('classes')
-        .select('id, name, grade')
+        .select('id, name, year')
         .order('name');
 
       if (error) throw error;
@@ -112,9 +133,7 @@ const StudentManagement = ({ userRole }: StudentManagementProps) => {
           .from('profiles')
           .update({
             full_name: formData.full_name,
-            email: formData.email,
-            phone: formData.phone,
-            enrollment_number: enrollmentNumber
+            email: formData.email
           })
           .eq('id', editingStudent.id);
 
@@ -141,7 +160,7 @@ const StudentManagement = ({ userRole }: StudentManagementProps) => {
           options: {
             data: {
               full_name: formData.full_name,
-              role: 'aluno'
+              role: 'student'
             }
           }
         });
@@ -182,7 +201,7 @@ const StudentManagement = ({ userRole }: StudentManagementProps) => {
     setFormData({
       full_name: student.full_name,
       email: student.email,
-      phone: student.phone || '',
+      phone: '',
       enrollment_number: student.enrollment_number,
       class_id: student.class_id || ''
     });
@@ -218,7 +237,7 @@ const StudentManagement = ({ userRole }: StudentManagementProps) => {
     student.enrollment_number.toLowerCase().includes(searchTerm.toLowerCase())
   );
 
-  const canManageStudents = ['diretor', 'coordenador'].includes(userRole);
+  const canManageStudents = ['admin', 'coord'].includes(userRole);
 
   if (loading) {
     return <div className="flex justify-center p-8">Carregando estudantes...</div>;
@@ -308,7 +327,7 @@ const StudentManagement = ({ userRole }: StudentManagementProps) => {
                       <SelectItem value="">Sem turma</SelectItem>
                       {classes.map((cls) => (
                         <SelectItem key={cls.id} value={cls.id}>
-                          {cls.name} - {cls.grade}
+                          {cls.name} - {cls.year}
                         </SelectItem>
                       ))}
                     </SelectContent>
